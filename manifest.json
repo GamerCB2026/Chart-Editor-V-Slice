@@ -1,6 +1,6 @@
 {
-  "name": "Chart Editor App",
-  "short_name": "ChartEdit",
+  "name": "Chart Editor Online",
+  "short_name": "Chart Editor Online",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#111111",
