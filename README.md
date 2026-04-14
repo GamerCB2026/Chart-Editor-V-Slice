@@ -1,4 +1,4 @@
-# Chart-Editor-V-Slice
+# Chart-Editor-V-Slice (BETA 1)
 Este Chart Editor es una pagina web que es compatible con el FNF V-Slice perfecto para los porteadores y creadores de mods moviles
 
 BY: GamerCB
