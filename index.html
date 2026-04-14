@@ -2,210 +2,206 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Convert Stage V-Slice | GamerCB</title 
-    <link rel="icon" type="image/png" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="manifest" href="manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FNF Studio - Sync Master</title>
     <style>
-        body { background: #0a0a0a; color: #eee; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
-        #sidebar { width: 300px; padding: 20px; background: #151515; border-right: 2px solid #333; z-index: 100; overflow-y: auto; }
+        :root { --accent: #00ffcc; --bg: #0a0a0a; --grid-line: #222; }
+        body { background: var(--bg); color: #eee; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
+        
+        /* Selector de Modo */
+        #mode-selector { position: fixed; top: 10px; right: 10px; z-index: 1000; display: flex; gap: 5px; background: #222; padding: 5px; border-radius: 8px; }
+        .mode-btn { padding: 8px; cursor: pointer; border: 1px solid #444; background: #111; border-radius: 5px; font-size: 20px; }
+        .mode-btn.active { border-color: var(--accent); background: #333; }
+
+        /* Controles */
+        #sidebar { width: 300px; padding: 20px; background: #151515; border-right: 2px solid #333; z-index: 100; overflow-y: auto; transition: 0.3s; }
+        
+        /* AREA DE CHART Y REJILLA */
         #chart-area { flex-grow: 1; height: 100vh; overflow-y: scroll; background: #050505; position: relative; display: none; }
         
         #grid { 
-            display: grid; grid-template-columns: repeat(8, 60px); width: 480px; margin: 0 auto;
-            background-color: #080808;
-            background-image: linear-gradient(to right, #222 1px, transparent 1px), linear-gradient(to bottom, #222 1px, transparent 1px);
-            background-size: 60px 60px; border-left: 2px solid #444; border-right: 2px solid #444; position: relative;
+            display: grid; margin: 0 auto;
+            /* Cuadros visibles siempre */
+            background-size: 60px 60px;
+            background-image: 
+                linear-gradient(to right, var(--grid-line) 2px, transparent 2px),
+                linear-gradient(to bottom, var(--grid-line) 2px, transparent 2px);
+            border-left: 2px solid #444; border-right: 2px solid #444; position: relative;
         }
 
-        /* Línea roja con cursor de movimiento */
         #playhead {
-            position: absolute; width: 480px; height: 10px; background: #ff0000;
-            box-shadow: 0 0 20px #ff0000; left: 50%; transform: translateX(-50%);
-            z-index: 60; cursor: ns-resize; pointer-events: auto;
+            position: absolute; width: 100%; height: 6px; background: #ff0000;
+            box-shadow: 0 0 10px #ff0000; left: 0; z-index: 60; cursor: ns-resize;
         }
 
-        .note { 
-            width: 60px; height: 60px; cursor: pointer; 
-            background-size: 85%; background-repeat: no-repeat; background-position: center; 
-            opacity: 0; transition: opacity 0.1s;
-        }
-        
-        .active-note { opacity: 1 !important; filter: drop-shadow(0 0 8px currentColor); }
+        .note { width: 60px; height: 60px; cursor: pointer; background-size: 80%; background-repeat: no-repeat; background-position: center; opacity: 0.1; border: 0.1px solid #111; }
+        .active-note { opacity: 1 !important; filter: drop-shadow(0 0 5px currentColor); }
 
-        /* Flechas GitHub */
+        /* Iconos */
         .col-0, .col-4 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162712.png'); }
         .col-1, .col-5 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162644.png'); }
         .col-2, .col-6 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162622.png'); }
         .col-3, .col-7 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162552.png'); }
 
-        button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-weight: bold; }
-        button:hover { background: #00ffcc; color: #000; }
-        #reset-btn { border-color: #ff3333; color: #ff3333; }
-        #reset-btn:hover { background: #ff3333; color: #fff; }
-        .label { display: block; margin-top: 15px; font-weight: bold; color: #00ffcc; }
+        /* Adaptación Móvil */
+        body.mobile-mode #sidebar { position: fixed; bottom: 0; width: 100%; height: 45vh; border-top: 2px solid var(--accent); transform: translateY(100%); z-index: 900; }
+        body.mobile-mode #sidebar.show { transform: translateY(0); }
+        body.mobile-mode .note { width: 80px; height: 80px; }
+        body.mobile-mode #grid { background-size: 80px 80px; }
+
+        #mobile-nav { display: none; position: fixed; top: 10px; left: 10px; z-index: 500; gap: 8px; }
+        body.mobile-mode #mobile-nav { display: flex; }
+        
+        .m-btn { padding: 12px; background: #222; border: 1px solid var(--accent); color: #fff; border-radius: 8px; font-weight: bold; }
+        .active-side { background: var(--accent); color: #000; }
+        button { width: 100%; padding: 12px; margin-top: 8px; cursor: pointer; background: #222; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; }
     </style>
 </head>
-<body>
+<body class="pc-mode">
 
-<div id="sidebar">
-    <h2 style="color: #00ffcc; text-align: center;">FNF STUDIO</h2>
-    <label class="label">CONFIGURACIÓN</label>
-    BPM: <input type="number" id="bpm" value="100" style="width: 60px; background: #333; color: #fff; border: 1px solid #00ffcc;">
-    
-    <label class="label">AUDIO</label>
-    Inst: <input type="file" id="inst-file" accept="audio/*"><br>
-    Enemigo: <input type="file" id="opp-file" accept="audio/*"><br>
-    Jugador: <input type="file" id="bf-file" accept="audio/*">
-    
-    <button onclick="generateChartArea()" style="background: #00ffcc; color: #000;">GENERAR ÁREA</button>
-    <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
-    
-    <button id="playBtn" onclick="togglePlay()" disabled>REPRODUCIR (SPACE)</button>
-    <button id="reset-btn" onclick="resetChart()">RESET (INICIO)</button>
-    <button onclick="exportChart()">EXPORTAR JSON</button>
+<div id="mode-selector">
+    <div class="mode-btn active" onclick="changeMode('pc')">💻</div>
+    <div class="mode-btn" onclick="changeMode('mobile')">📱</div>
 </div>
 
-<div id="chart-area" onscroll="handleManualScroll()">
-    <div id="playhead"></div>
-    <div id="grid"></div>
+<div id="mobile-nav">
+    <button class="m-btn active-side" id="m-opp" onclick="setSide(0)">OPONENTE</button>
+    <button class="m-btn" id="m-bf" onclick="setSide(1)">JUGADOR</button>
+    <button class="m-btn" onclick="document.getElementById('sidebar').classList.toggle('show')">⚙️</button>
+</div>
+
+<div id="sidebar">
+    <h2 style="color:var(--accent); margin:0;">FNF STUDIO</h2>
+    <label style="font-size:12px;">BPM:</label>
+    <input type="number" id="bpm" value="100" style="width:100%; background:#222; color:#fff; border:1px solid var(--accent); padding:8px;">
+    
+    <p style="color:var(--accent); font-weight:bold; margin-top:15px;">AUDIOS</p>
+    <input type="file" id="f-inst" accept="audio/*"> <small>Inst</small>
+    <input type="file" id="f-opp" accept="audio/*"> <small>Voces Oponente</small>
+    <input type="file" id="f-bf" accept="audio/*"> <small>Voces Jugador</small>
+    
+    <button onclick="buildGrid()" style="background:var(--accent); color:#000; margin-top:15px;">GENERAR ÁREA</button>
+    <button id="playBtn" onclick="toggleMusic()" disabled>REPRODUCIR (SPACE)</button>
+    <button onclick="resetToStart()" style="color:#ff4444; border-color:#ff4444;">RESET</button>
+</div>
+
+<div id="chart-area">
+    <div id="grid"><div id="playhead"></div></div>
 </div>
 
 <script>
-    const grid = document.getElementById('grid');
-    const playhead = document.getElementById('playhead');
-    const chartArea = document.getElementById('chart-area');
-    const playBtn = document.getElementById('playBtn');
+    let appMode = 'pc', activeSide = 0;
+    const audio = { inst: new Audio(), opp: new Audio(), bf: new Audio() };
+    let playing = false, dragging = false;
 
-    let isPlaying = false;
-    let isDragging = false;
-    let audios = { inst: new Audio(), opp: new Audio(), bf: new Audio() };
-    let activeNotesData = []; 
-    let lastProcessedRow = -1;
-    const rowHeight = 60;
-
-    // --- Lógica de Reset ---
-    function resetChart() {
-        if (isPlaying) togglePlay();
-        audios.inst.currentTime = 0;
-        audios.opp.currentTime = 0;
-        audios.bf.currentTime = 0;
-        chartArea.scrollTop = 0;
-        playhead.style.top = '0px';
+    // --- SISTEMA DE SINCRONIZACIÓN MAESTRA ---
+    function syncAudios() {
+        // Obligamos a las voces a tener el mismo tiempo que la instrumental
+        if (Math.abs(audio.opp.currentTime - audio.inst.currentTime) > 0.05) {
+            audio.opp.currentTime = audio.inst.currentTime;
+        }
+        if (Math.abs(audio.bf.currentTime - audio.inst.currentTime) > 0.05) {
+            audio.bf.currentTime = audio.inst.currentTime;
+        }
     }
 
-    // --- Lógica de Arrastre (Drag) de Línea Roja ---
-    function movePlayhead(y) {
-        const rect = grid.getBoundingClientRect();
-        const relativeY = y - rect.top + chartArea.scrollTop;
-        const clampedY = Math.max(0, Math.min(relativeY, grid.offsetHeight));
+    function changeMode(m) {
+        appMode = m;
+        document.body.className = m + '-mode';
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        if(m === 'pc') { document.getElementById('sidebar').classList.remove('show'); updateLayout(true); }
+        else { setSide(0); }
+    }
+
+    function setSide(s) {
+        activeSide = s;
+        document.getElementById('m-opp').classList.toggle('active-side', s === 0);
+        document.getElementById('m-bf').classList.toggle('active-side', s === 1);
+        updateLayout(false);
+    }
+
+    function updateLayout(showAll) {
+        const notes = document.querySelectorAll('.note');
+        const grid = document.getElementById('grid');
+        const size = appMode === 'pc' ? 60 : 80;
+        
+        notes.forEach(n => {
+            const c = parseInt(n.dataset.col);
+            if(showAll) n.style.display = 'block';
+            else n.style.display = (activeSide === 0 && c < 4) || (activeSide === 1 && c >= 4) ? 'block' : 'none';
+        });
+        
+        grid.style.gridTemplateColumns = showAll ? `repeat(8, ${size}px)` : `repeat(4, ${size}px)`;
+        grid.style.width = showAll ? `${size * 8}px` : `${size * 4}px`;
+    }
+
+    function buildGrid() {
+        const grid = document.getElementById('grid');
+        const ph = document.getElementById('playhead');
+        grid.innerHTML = ''; grid.appendChild(ph);
         
         const bpm = parseInt(document.getElementById('bpm').value);
-        const msPerRow = (60000 / bpm) / 4;
-        const timeInSec = ((clampedY / rowHeight) * msPerRow) / 1000;
-
-        if (timeInSec >= 0 && timeInSec <= audios.inst.duration) {
-            audios.inst.currentTime = timeInSec;
-            audios.opp.currentTime = timeInSec;
-            audios.bf.currentTime = timeInSec;
-            playhead.style.top = clampedY + 'px';
-        }
-    }
-
-    playhead.addEventListener('mousedown', () => isDragging = true);
-    playhead.addEventListener('touchstart', (e) => { isDragging = true; e.preventDefault(); }, {passive: false});
-
-    window.addEventListener('mousemove', (e) => { if (isDragging) movePlayhead(e.clientY); });
-    window.addEventListener('touchmove', (e) => { if (isDragging) movePlayhead(e.touches[0].clientY); }, {passive: false});
-
-    window.addEventListener('mouseup', () => isDragging = false);
-    window.addEventListener('touchend', () => isDragging = false);
-
-    // --- Lógica de Audio y Generación (Igual que antes) ---
-    function bindAudio(id, key) {
-        document.getElementById(id).onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) audios[key].src = URL.createObjectURL(file);
-        };
-    }
-    bindAudio('inst-file', 'inst'); bindAudio('opp-file', 'opp'); bindAudio('bf-file', 'bf');
-
-    function generateChartArea() {
-        if (!audios.inst.src) return alert("Carga la instrumental.");
-        grid.innerHTML = '';
-        audios.inst.onloadedmetadata = () => {
-            const bpm = parseInt(document.getElementById('bpm').value);
-            const msPerRow = (60000 / bpm) / 4;
-            const totalRows = Math.ceil((audios.inst.duration * 1000) / msPerRow);
-            for (let r = 0; r < totalRows; r++) {
-                for (let c = 0; c < 8; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = `note col-${c}`;
-                    cell.dataset.row = r;
-                    cell.dataset.col = c;
-                    cell.onclick = () => { cell.classList.toggle('active-note'); updateActiveNotes(); };
-                    grid.appendChild(cell);
-                }
+        const rows = Math.ceil((audio.inst.duration * 1000) / ((60000/bpm)/4));
+        
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < 8; c++) {
+                const n = document.createElement('div');
+                n.className = `note col-${c}`;
+                n.dataset.row = r; n.dataset.col = c;
+                n.onclick = () => n.classList.toggle('active-note');
+                grid.appendChild(n);
             }
-            chartArea.style.display = 'block';
-            playBtn.disabled = false;
-        };
-        if (audios.inst.readyState >= 1) audios.inst.onloadedmetadata();
-    }
-
-    function updateActiveNotes() {
-        activeNotesData = Array.from(document.querySelectorAll('.active-note')).map(n => ({
-            row: parseInt(n.dataset.row), col: parseInt(n.dataset.col)
-        }));
-    }
-
-    function handleManualScroll() {
-        if (isPlaying || isDragging) return; 
-        const bpm = parseInt(document.getElementById('bpm').value);
-        const msPerRow = (60000 / bpm) / 4;
-        const scrollPos = chartArea.scrollTop + (window.innerHeight / 3);
-        const timeInSec = ((scrollPos / rowHeight) * msPerRow) / 1000;
-
-        if (timeInSec >= 0 && timeInSec <= audios.inst.duration) {
-            audios.inst.currentTime = timeInSec;
-            audios.opp.currentTime = timeInSec;
-            audios.bf.currentTime = timeInSec;
-            playhead.style.top = scrollPos + 'px';
         }
+        document.getElementById('chart-area').style.display = 'block';
+        document.getElementById('playBtn').disabled = false;
+        updateLayout(appMode === 'pc');
     }
 
-    function togglePlay() {
-        if (!isPlaying) {
-            audios.inst.play(); audios.opp.play(); audios.bf.play();
-            isPlaying = true; playBtn.innerText = "PAUSAR (SPACE)";
-            requestAnimationFrame(syncLoop);
+    function toggleMusic() {
+        if (!playing) {
+            audio.inst.play(); audio.opp.play(); audio.bf.play();
+            playing = true; renderLoop();
         } else {
-            audios.inst.pause(); audios.opp.pause(); audios.bf.pause();
-            isPlaying = false; playBtn.innerText = "REPRODUCIR (SPACE)";
+            audio.inst.pause(); audio.opp.pause(); audio.bf.pause();
+            playing = false;
         }
     }
 
-    function syncLoop() {
-        if (!isPlaying || isDragging) return;
+    function renderLoop() {
+        if(!playing || dragging) return;
+        syncAudios(); // Ejecutar sincronización
         const bpm = parseInt(document.getElementById('bpm').value);
-        const msPerRow = (60000 / bpm) / 4;
-        const pos = (audios.inst.currentTime * 1000 / msPerRow) * rowHeight;
-        playhead.style.top = pos + 'px';
-        chartArea.scrollTop = pos - (window.innerHeight / 3);
-        requestAnimationFrame(syncLoop);
+        const h = appMode === 'pc' ? 60 : 80;
+        const pos = (audio.inst.currentTime * 1000 / ((60000/bpm)/4)) * h;
+        
+        document.getElementById('playhead').style.top = pos + 'px';
+        document.getElementById('chart-area').scrollTop = pos - 200;
+        requestAnimationFrame(renderLoop);
     }
 
-    window.addEventListener('keydown', (e) => { if (e.code === "Space") { e.preventDefault(); togglePlay(); } });
-
-    function exportChart() {
-        const bpm = parseInt(document.getElementById('bpm').value);
-        const msPerRow = (60000 / bpm) / 4;
-        const notes = activeNotesData.map(n => [Math.round(n.row * msPerRow), n.col, 0]);
-        const data = { song: { notes: [{ sectionNotes: notes }], bpm: bpm } };
-        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'chart.json'; a.click();
+    // --- Arrastre de Línea Roja ---
+    const ph = document.getElementById('playhead');
+    function seek(y) {
+        const rect = document.getElementById('grid').getBoundingClientRect();
+        const scroll = document.getElementById('chart-area').scrollTop;
+        const h = appMode === 'pc' ? 60 : 80;
+        const time = (((y - rect.top + scroll) / h) * ((60000/parseInt(document.getElementById('bpm').value))/4)) / 1000;
+        if(time >= 0 && time <= audio.inst.duration) {
+            audio.inst.currentTime = audio.opp.currentTime = audio.bf.currentTime = time;
+            document.getElementById('playhead').style.top = (y - rect.top + scroll) + 'px';
+        }
     }
+
+    ph.onmousedown = ph.ontouchstart = () => dragging = true;
+    window.onmousemove = (e) => { if(dragging) seek(e.clientY); };
+    window.ontouchmove = (e) => { if(dragging) seek(e.touches[0].clientY); };
+    window.onmouseup = window.ontouchend = () => dragging = false;
+
+    function resetToStart() { audio.inst.currentTime = 0; renderLoop(); }
+
+    function load(id, key) { document.getElementById(id).onchange = (e) => audio[key].src = URL.createObjectURL(e.target.files[0]); }
+    load('f-inst', 'inst'); load('f-opp', 'opp'); load('f-bf', 'bf');
 </script>
 </body>
 </html>
