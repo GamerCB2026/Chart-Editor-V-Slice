@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>FNF Studio - Full Scroll Sync</title>
+    <title>FNF Studio - V-Slice Editor</title>
     <style>
         body { background: #0a0a0a; color: #eee; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
         #sidebar { width: 300px; padding: 20px; background: #151515; border-right: 2px solid #333; z-index: 100; overflow-y: auto; }
@@ -21,14 +21,31 @@
             z-index: 50; pointer-events: none;
         }
 
-        .note { width: 60px; height: 60px; cursor: pointer; background-size: 75%; background-repeat: no-repeat; background-position: center; opacity: 0.1; }
-        .active-note { opacity: 1 !important; filter: drop-shadow(0 0 8px currentColor); background-color: rgba(255,255,255,0.1); }
+        /* Notas: Invisibles por defecto, se ven al activarse */
+        .note { 
+            width: 60px; height: 60px; cursor: pointer; 
+            background-size: 80%; background-repeat: no-repeat; background-position: center; 
+            opacity: 0; /* Totalmente transparente al inicio */
+            transition: opacity 0.1s;
+        }
+        
+        .active-note { 
+            opacity: 1 !important; 
+            filter: drop-shadow(0 0 5px currentColor);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
 
-        /* Colores Flechas */
-        .col-0, .col-4 { color: #C24B99; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M70 20 L30 50 L70 80 Z" fill="%23C24B99" stroke="white" stroke-width="5"/></svg>'); }
-        .col-1, .col-5 { color: #00FFFF; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 30 L50 70 L80 30 Z" fill="%2300FFFF" stroke="white" stroke-width="5"/></svg>'); }
-        .col-2, .col-6 { color: #12FA05; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 70 L50 30 L80 70 Z" fill="%2312FA05" stroke="white" stroke-width="5"/></svg>'); }
-        .col-3, .col-7 { color: #F9393F; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M30 20 L70 50 L30 80 Z" fill="%23F9393F" stroke="white" stroke-width="5"/></svg>'); }
+        /* Diseño de Flechas basado en tu imagen */
+        /* Izquierda - Morado */
+        .col-0, .col-4 { color: #C24B99; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M75 20 L25 50 L75 80 Z" fill="%23C24B99" stroke="white" stroke-width="4"/></svg>'); }
+        /* Abajo - Azul Cian */
+        .col-1, .col-5 { color: #00FFFF; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 25 L50 75 L80 25 Z" fill="%2300FFFF" stroke="white" stroke-width="4"/></svg>'); }
+        /* Arriba - Verde */
+        .col-2, .col-6 { color: #12FA05; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 75 L50 25 L80 75 Z" fill="%2312FA05" stroke="white" stroke-width="4"/></svg>'); }
+        /* Derecha - Rojo */
+        .col-3, .col-7 { color: #F9393F; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M25 20 L75 50 L25 80 Z" fill="%23F9393F" stroke="white" stroke-width="4"/></svg>'); }
+
+        .note:hover:not(.active-note) { opacity: 0.3; background-color: rgba(255,255,255,0.1); }
 
         button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-weight: bold; }
         button:hover { background: #00ffcc; color: #000; }
@@ -43,7 +60,7 @@
     <label class="label">CONFIGURACIÓN</label>
     BPM: <input type="number" id="bpm" value="100" style="width: 60px;">
     
-    <label class="label">ARCHIVOS</label>
+    <label class="label">ARCHIVOS (V-Slice)</label>
     <div style="font-size: 11px;">
         Inst: <input type="file" id="inst-file" accept="audio/*"><br>
         Enemy: <input type="file" id="opp-file" accept="audio/*"><br>
@@ -69,7 +86,6 @@
     const playBtn = document.getElementById('playBtn');
 
     let isPlaying = false;
-    let isUserScrolling = false;
     let audios = { inst: new Audio(), opp: new Audio(), bf: new Audio() };
     let activeNotesData = []; 
     let lastProcessedRow = -1;
@@ -77,16 +93,15 @@
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // Sonido de nota (Más fuerte y agudo)
     function playHitSound() {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
-        osc.type = 'square'; // Sonido más cortante
-        osc.frequency.setValueAtTime(1500, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.6, audioCtx.currentTime); // Volumen subido
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.type = 'square'; 
+        osc.frequency.setValueAtTime(1600, audioCtx.currentTime); // Más agudo
+        gain.gain.setValueAtTime(0.8, audioCtx.currentTime); // Volumen al 80%
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
         osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.04);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.05);
     }
 
     function bindAudio(id, key) {
@@ -109,7 +124,11 @@
                     const cell = document.createElement('div');
                     cell.className = `note col-${c}`;
                     cell.dataset.row = r;
-                    cell.onclick = () => { cell.classList.toggle('active-note'); updateActiveNotes(); };
+                    cell.onclick = () => { 
+                        cell.classList.toggle('active-note'); 
+                        updateActiveNotes(); 
+                        if(cell.classList.contains('active-note')) playHitSound(); // Suena al colocarla
+                    };
                     grid.appendChild(cell);
                 }
             }
@@ -123,16 +142,12 @@
         activeNotesData = Array.from(document.querySelectorAll('.active-note')).map(n => parseInt(n.dataset.row));
     }
 
-    // Sincronizar música al mover el scroll manualmente
     function handleManualScroll() {
-        if (isPlaying) return; // No interferir si está en Play
+        if (isPlaying) return; 
         const bpm = parseInt(document.getElementById('bpm').value);
         const msPerRow = (60000 / bpm) / 4;
-        
-        // Calculamos el tiempo basado en la posición del scroll
         const scrollPos = chartArea.scrollTop + (window.innerHeight / 3);
-        const timeInMs = (scrollPos / rowHeight) * msPerRow;
-        const timeInSec = timeInMs / 1000;
+        const timeInSec = ((scrollPos / rowHeight) * msPerRow) / 1000;
 
         if (timeInSec >= 0 && timeInSec <= audios.inst.duration) {
             audios.inst.currentTime = timeInSec;
@@ -165,8 +180,6 @@
         const pos = (timeMs / msPerRow) * rowHeight;
 
         playhead.style.top = pos + 'px';
-        
-        // Auto-scroll durante la reproducción
         chartArea.scrollTop = pos - (window.innerHeight / 3);
 
         if (currentRow !== lastProcessedRow) {
@@ -177,14 +190,14 @@
     }
 
     window.addEventListener('keydown', (e) => { if (e.code === "Space") { e.preventDefault(); togglePlay(); } });
-    
+
     function exportChart() {
         const activeNotes = document.querySelectorAll('.active-note');
         const bpm = parseInt(document.getElementById('bpm').value);
         const msPerRow = (60000 / bpm) / 4;
         const notes = Array.from(activeNotes).map(n => [Math.round(n.dataset.row * msPerRow), parseInt(n.dataset.col), 0]);
         const blob = new Blob([JSON.stringify({song:{notes:[{sectionNotes:notes}], bpm:bpm}})], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'chart.json'; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'chart-vslice.json'; a.click();
     }
 </script>
 </body>
