@@ -2,11 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Convert Stage V-Slice | GamerCB</title 
-    <link rel="icon" type="image/png" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="manifest" href="manifest.json">
+    <title>FNF Studio - V-Slice Full Editor</title>
     <style>
         body { background: #0a0a0a; color: #eee; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
         #sidebar { width: 300px; padding: 20px; background: #151515; border-right: 2px solid #333; z-index: 100; overflow-y: auto; }
@@ -19,33 +15,32 @@
             background-size: 60px 60px; border-left: 2px solid #444; border-right: 2px solid #444; position: relative;
         }
 
+        /* Línea roja con cursor de movimiento */
         #playhead {
-            position: absolute; width: 480px; height: 6px; background: #ff0000;
+            position: absolute; width: 480px; height: 10px; background: #ff0000;
             box-shadow: 0 0 20px #ff0000; left: 50%; transform: translateX(-50%);
-            z-index: 50; pointer-events: none;
+            z-index: 60; cursor: ns-resize; pointer-events: auto;
         }
 
         .note { 
             width: 60px; height: 60px; cursor: pointer; 
             background-size: 85%; background-repeat: no-repeat; background-position: center; 
-            opacity: 0;
-            transition: opacity 0.1s;
+            opacity: 0; transition: opacity 0.1s;
         }
         
         .active-note { opacity: 1 !important; filter: drop-shadow(0 0 8px currentColor); }
 
-        /* IMÁGENES DESDE TU GITHUB GamerCB2026 */
-        .col-0, .col-4 { color: #C24B99; background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162712.png'); }
-        .col-1, .col-5 { color: #00FFFF; background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162644.png'); }
-        .col-2, .col-6 { color: #12FA05; background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162622.png'); }
-        .col-3, .col-7 { color: #F9393F; background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162552.png'); }
-
-        .note:hover:not(.active-note) { opacity: 0.3; background-color: rgba(255,255,255,0.1); }
+        /* Flechas GitHub */
+        .col-0, .col-4 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162712.png'); }
+        .col-1, .col-5 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162644.png'); }
+        .col-2, .col-6 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162622.png'); }
+        .col-3, .col-7 { background-image: url('https://raw.githubusercontent.com/GamerCB2026/Chart-Editor-V-Slice/main/169%20sin%20título_20260414162552.png'); }
 
         button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-weight: bold; }
         button:hover { background: #00ffcc; color: #000; }
+        #reset-btn { border-color: #ff3333; color: #ff3333; }
+        #reset-btn:hover { background: #ff3333; color: #fff; }
         .label { display: block; margin-top: 15px; font-weight: bold; color: #00ffcc; }
-        input[type="file"] { font-size: 10px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
@@ -55,15 +50,16 @@
     <label class="label">CONFIGURACIÓN</label>
     BPM: <input type="number" id="bpm" value="100" style="width: 60px; background: #333; color: #fff; border: 1px solid #00ffcc;">
     
-    <label class="label">AUDIO (V-SLICE)</label>
+    <label class="label">AUDIO</label>
     Inst: <input type="file" id="inst-file" accept="audio/*"><br>
-    Voces Enemigo: <input type="file" id="opp-file" accept="audio/*"><br>
-    Voces Jugador: <input type="file" id="bf-file" accept="audio/*">
+    Enemigo: <input type="file" id="opp-file" accept="audio/*"><br>
+    Jugador: <input type="file" id="bf-file" accept="audio/*">
     
     <button onclick="generateChartArea()" style="background: #00ffcc; color: #000;">GENERAR ÁREA</button>
     <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
     
     <button id="playBtn" onclick="togglePlay()" disabled>REPRODUCIR (SPACE)</button>
+    <button id="reset-btn" onclick="resetChart()">RESET (INICIO)</button>
     <button onclick="exportChart()">EXPORTAR JSON</button>
 </div>
 
@@ -79,23 +75,50 @@
     const playBtn = document.getElementById('playBtn');
 
     let isPlaying = false;
+    let isDragging = false;
     let audios = { inst: new Audio(), opp: new Audio(), bf: new Audio() };
     let activeNotesData = []; 
     let lastProcessedRow = -1;
     const rowHeight = 60;
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    function playHitSound() {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'square'; 
-        osc.frequency.setValueAtTime(1500, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.04);
+    // --- Lógica de Reset ---
+    function resetChart() {
+        if (isPlaying) togglePlay();
+        audios.inst.currentTime = 0;
+        audios.opp.currentTime = 0;
+        audios.bf.currentTime = 0;
+        chartArea.scrollTop = 0;
+        playhead.style.top = '0px';
     }
 
+    // --- Lógica de Arrastre (Drag) de Línea Roja ---
+    function movePlayhead(y) {
+        const rect = grid.getBoundingClientRect();
+        const relativeY = y - rect.top + chartArea.scrollTop;
+        const clampedY = Math.max(0, Math.min(relativeY, grid.offsetHeight));
+        
+        const bpm = parseInt(document.getElementById('bpm').value);
+        const msPerRow = (60000 / bpm) / 4;
+        const timeInSec = ((clampedY / rowHeight) * msPerRow) / 1000;
+
+        if (timeInSec >= 0 && timeInSec <= audios.inst.duration) {
+            audios.inst.currentTime = timeInSec;
+            audios.opp.currentTime = timeInSec;
+            audios.bf.currentTime = timeInSec;
+            playhead.style.top = clampedY + 'px';
+        }
+    }
+
+    playhead.addEventListener('mousedown', () => isDragging = true);
+    playhead.addEventListener('touchstart', (e) => { isDragging = true; e.preventDefault(); }, {passive: false});
+
+    window.addEventListener('mousemove', (e) => { if (isDragging) movePlayhead(e.clientY); });
+    window.addEventListener('touchmove', (e) => { if (isDragging) movePlayhead(e.touches[0].clientY); }, {passive: false});
+
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('touchend', () => isDragging = false);
+
+    // --- Lógica de Audio y Generación (Igual que antes) ---
     function bindAudio(id, key) {
         document.getElementById(id).onchange = (e) => {
             const file = e.target.files[0];
@@ -105,7 +128,7 @@
     bindAudio('inst-file', 'inst'); bindAudio('opp-file', 'opp'); bindAudio('bf-file', 'bf');
 
     function generateChartArea() {
-        if (!audios.inst.src) return alert("Carga al menos la instrumental.");
+        if (!audios.inst.src) return alert("Carga la instrumental.");
         grid.innerHTML = '';
         audios.inst.onloadedmetadata = () => {
             const bpm = parseInt(document.getElementById('bpm').value);
@@ -117,10 +140,7 @@
                     cell.className = `note col-${c}`;
                     cell.dataset.row = r;
                     cell.dataset.col = c;
-                    cell.onclick = () => { 
-                        cell.classList.toggle('active-note'); 
-                        updateActiveNotes(); 
-                    };
+                    cell.onclick = () => { cell.classList.toggle('active-note'); updateActiveNotes(); };
                     grid.appendChild(cell);
                 }
             }
@@ -132,13 +152,12 @@
 
     function updateActiveNotes() {
         activeNotesData = Array.from(document.querySelectorAll('.active-note')).map(n => ({
-            row: parseInt(n.dataset.row),
-            col: parseInt(n.dataset.col)
+            row: parseInt(n.dataset.row), col: parseInt(n.dataset.col)
         }));
     }
 
     function handleManualScroll() {
-        if (isPlaying) return; 
+        if (isPlaying || isDragging) return; 
         const bpm = parseInt(document.getElementById('bpm').value);
         const msPerRow = (60000 / bpm) / 4;
         const scrollPos = chartArea.scrollTop + (window.innerHeight / 3);
@@ -148,39 +167,28 @@
             audios.inst.currentTime = timeInSec;
             audios.opp.currentTime = timeInSec;
             audios.bf.currentTime = timeInSec;
-            playhead.style.top = (scrollPos) + 'px';
+            playhead.style.top = scrollPos + 'px';
         }
     }
 
     function togglePlay() {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
         if (!isPlaying) {
             audios.inst.play(); audios.opp.play(); audios.bf.play();
-            isPlaying = true;
-            playBtn.innerText = "PAUSAR (SPACE)";
+            isPlaying = true; playBtn.innerText = "PAUSAR (SPACE)";
             requestAnimationFrame(syncLoop);
         } else {
             audios.inst.pause(); audios.opp.pause(); audios.bf.pause();
-            isPlaying = false;
-            playBtn.innerText = "REPRODUCIR (SPACE)";
+            isPlaying = false; playBtn.innerText = "REPRODUCIR (SPACE)";
         }
     }
 
     function syncLoop() {
-        if (!isPlaying) return;
+        if (!isPlaying || isDragging) return;
         const bpm = parseInt(document.getElementById('bpm').value);
         const msPerRow = (60000 / bpm) / 4;
-        const timeMs = audios.inst.currentTime * 1000;
-        const currentRow = Math.floor(timeMs / msPerRow);
-        const pos = (timeMs / msPerRow) * rowHeight;
-
+        const pos = (audios.inst.currentTime * 1000 / msPerRow) * rowHeight;
         playhead.style.top = pos + 'px';
         chartArea.scrollTop = pos - (window.innerHeight / 3);
-
-        if (currentRow !== lastProcessedRow) {
-            if (activeNotesData.some(n => n.row === currentRow)) playHitSound();
-            lastProcessedRow = currentRow;
-        }
         requestAnimationFrame(syncLoop);
     }
 
