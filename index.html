@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>FNF Studio - Full Scroll Sync</title>
+    <style>
+        body { background: #0a0a0a; color: #eee; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
+        #sidebar { width: 300px; padding: 20px; background: #151515; border-right: 2px solid #333; z-index: 100; overflow-y: auto; }
+        #chart-area { flex-grow: 1; height: 100vh; overflow-y: scroll; background: #050505; position: relative; display: none; }
+        
+        #grid { 
+            display: grid; grid-template-columns: repeat(8, 60px); width: 480px; margin: 0 auto;
+            background-color: #080808;
+            background-image: linear-gradient(to right, #222 1px, transparent 1px), linear-gradient(to bottom, #222 1px, transparent 1px);
+            background-size: 60px 60px; border-left: 2px solid #444; border-right: 2px solid #444; position: relative;
+        }
+
+        #playhead {
+            position: absolute; width: 480px; height: 6px; background: #ff0000;
+            box-shadow: 0 0 20px #ff0000; left: 50%; transform: translateX(-50%);
+            z-index: 50; pointer-events: none;
+        }
+
+        .note { width: 60px; height: 60px; cursor: pointer; background-size: 75%; background-repeat: no-repeat; background-position: center; opacity: 0.1; }
+        .active-note { opacity: 1 !important; filter: drop-shadow(0 0 8px currentColor); background-color: rgba(255,255,255,0.1); }
+
+        /* Colores Flechas */
+        .col-0, .col-4 { color: #C24B99; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M70 20 L30 50 L70 80 Z" fill="%23C24B99" stroke="white" stroke-width="5"/></svg>'); }
+        .col-1, .col-5 { color: #00FFFF; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 30 L50 70 L80 30 Z" fill="%2300FFFF" stroke="white" stroke-width="5"/></svg>'); }
+        .col-2, .col-6 { color: #12FA05; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M20 70 L50 30 L80 70 Z" fill="%2312FA05" stroke="white" stroke-width="5"/></svg>'); }
+        .col-3, .col-7 { color: #F9393F; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M30 20 L70 50 L30 80 Z" fill="%23F9393F" stroke="white" stroke-width="5"/></svg>'); }
+
+        button { width: 100%; padding: 12px; margin-top: 10px; cursor: pointer; background: #222; color: #00ffcc; border: 1px solid #00ffcc; border-radius: 5px; font-weight: bold; }
+        button:hover { background: #00ffcc; color: #000; }
+        #gen-btn { background: #00ffcc; color: #000; }
+        .label { display: block; margin-top: 15px; font-weight: bold; color: #00ffcc; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h2 style="color: #00ffcc; text-align: center;">FNF STUDIO</h2>
+    <label class="label">CONFIGURACIÓN</label>
+    BPM: <input type="number" id="bpm" value="100" style="width: 60px;">
+    
+    <label class="label">ARCHIVOS</label>
+    <div style="font-size: 11px;">
+        Inst: <input type="file" id="inst-file" accept="audio/*"><br>
+        Enemy: <input type="file" id="opp-file" accept="audio/*"><br>
+        Player: <input type="file" id="bf-file" accept="audio/*">
+    </div>
+    
+    <button id="gen-btn" onclick="generateChartArea()">GENERAR ÁREA</button>
+    <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+    
+    <button id="playBtn" onclick="togglePlay()" disabled>REPRODUCIR (SPACE)</button>
+    <button onclick="exportChart()">EXPORTAR JSON</button>
+</div>
+
+<div id="chart-area" onscroll="handleManualScroll()">
+    <div id="playhead"></div>
+    <div id="grid"></div>
+</div>
+
+<script>
+    const grid = document.getElementById('grid');
+    const playhead = document.getElementById('playhead');
+    const chartArea = document.getElementById('chart-area');
+    const playBtn = document.getElementById('playBtn');
+
+    let isPlaying = false;
+    let isUserScrolling = false;
+    let audios = { inst: new Audio(), opp: new Audio(), bf: new Audio() };
+    let activeNotesData = []; 
+    let lastProcessedRow = -1;
+    const rowHeight = 60;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // Sonido de nota (Más fuerte y agudo)
+    function playHitSound() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square'; // Sonido más cortante
+        osc.frequency.setValueAtTime(1500, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.6, audioCtx.currentTime); // Volumen subido
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.04);
+    }
+
+    function bindAudio(id, key) {
+        document.getElementById(id).onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) audios[key].src = URL.createObjectURL(file);
+        };
+    }
+    bindAudio('inst-file', 'inst'); bindAudio('opp-file', 'opp'); bindAudio('bf-file', 'bf');
+
+    function generateChartArea() {
+        if (!audios.inst.src) return alert("Carga la instrumental.");
+        grid.innerHTML = '';
+        audios.inst.onloadedmetadata = () => {
+            const bpm = parseInt(document.getElementById('bpm').value);
+            const msPerRow = (60000 / bpm) / 4;
+            const totalRows = Math.ceil((audios.inst.duration * 1000) / msPerRow);
+            for (let r = 0; r < totalRows; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = `note col-${c}`;
+                    cell.dataset.row = r;
+                    cell.onclick = () => { cell.classList.toggle('active-note'); updateActiveNotes(); };
+                    grid.appendChild(cell);
+                }
+            }
+            chartArea.style.display = 'block';
+            playBtn.disabled = false;
+        };
+        if (audios.inst.readyState >= 1) audios.inst.onloadedmetadata();
+    }
+
+    function updateActiveNotes() {
+        activeNotesData = Array.from(document.querySelectorAll('.active-note')).map(n => parseInt(n.dataset.row));
+    }
+
+    // Sincronizar música al mover el scroll manualmente
+    function handleManualScroll() {
+        if (isPlaying) return; // No interferir si está en Play
+        const bpm = parseInt(document.getElementById('bpm').value);
+        const msPerRow = (60000 / bpm) / 4;
+        
+        // Calculamos el tiempo basado en la posición del scroll
+        const scrollPos = chartArea.scrollTop + (window.innerHeight / 3);
+        const timeInMs = (scrollPos / rowHeight) * msPerRow;
+        const timeInSec = timeInMs / 1000;
+
+        if (timeInSec >= 0 && timeInSec <= audios.inst.duration) {
+            audios.inst.currentTime = timeInSec;
+            audios.opp.currentTime = timeInSec;
+            audios.bf.currentTime = timeInSec;
+            playhead.style.top = (scrollPos) + 'px';
+        }
+    }
+
+    function togglePlay() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (!isPlaying) {
+            audios.inst.play(); audios.opp.play(); audios.bf.play();
+            isPlaying = true;
+            playBtn.innerText = "PAUSAR (SPACE)";
+            requestAnimationFrame(syncLoop);
+        } else {
+            audios.inst.pause(); audios.opp.pause(); audios.bf.pause();
+            isPlaying = false;
+            playBtn.innerText = "REPRODUCIR (SPACE)";
+        }
+    }
+
+    function syncLoop() {
+        if (!isPlaying) return;
+        const bpm = parseInt(document.getElementById('bpm').value);
+        const msPerRow = (60000 / bpm) / 4;
+        const timeMs = audios.inst.currentTime * 1000;
+        const currentRow = Math.floor(timeMs / msPerRow);
+        const pos = (timeMs / msPerRow) * rowHeight;
+
+        playhead.style.top = pos + 'px';
+        
+        // Auto-scroll durante la reproducción
+        chartArea.scrollTop = pos - (window.innerHeight / 3);
+
+        if (currentRow !== lastProcessedRow) {
+            if (activeNotesData.includes(currentRow)) playHitSound();
+            lastProcessedRow = currentRow;
+        }
+        requestAnimationFrame(syncLoop);
+    }
+
+    window.addEventListener('keydown', (e) => { if (e.code === "Space") { e.preventDefault(); togglePlay(); } });
+    
+    function exportChart() {
+        const activeNotes = document.querySelectorAll('.active-note');
+        const bpm = parseInt(document.getElementById('bpm').value);
+        const msPerRow = (60000 / bpm) / 4;
+        const notes = Array.from(activeNotes).map(n => [Math.round(n.dataset.row * msPerRow), parseInt(n.dataset.col), 0]);
+        const blob = new Blob([JSON.stringify({song:{notes:[{sectionNotes:notes}], bpm:bpm}})], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'chart.json'; a.click();
+    }
+</script>
+</body>
+</html>
