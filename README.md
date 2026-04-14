@@ -2,7 +2,9 @@
 Este Chart Editor es una pagina web que es compatible con el FNF V-Slice perfecto para los porteadores y creadores de mods moviles
 
 BY: GamerCB
+
 Herramientas IA incorporadas
+
 **COMO SE USA?**
 Para usar este Chart Editor debes de primero utilizarlo como si fuera el de psych engine o v-slice es lo mismo tiene btones que te dicen que hace cada uno y cada boton es funcional debes de tener suerte por saber la existencia de este Chart Editor
 **ES COMO EL CHART EDITOR ORIGINAL Y NO TIRA ERROES?**
